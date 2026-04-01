@@ -1,0 +1,19 @@
+# TunnelSpec AI — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# ── UI ──
+streamlit>=1.32.0
+
+# ── LLM provider ──
+openai>=1.14.0
+
+# ── PDF parsing ──
+pypdf>=3.17.0
+
+# ── Data & visualisation ──
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.18.0
+
+# ── Utility ──
+python-dotenv>=1.0.0
