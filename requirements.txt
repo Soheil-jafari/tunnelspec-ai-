@@ -17,3 +17,8 @@ plotly>=5.18.0
 
 # ── Utility ──
 python-dotenv>=1.0.0
+
+# ── GraphRAG module ──
+networkx>=3.2
+pyvis>=0.3.2
+rapidfuzz>=3.6.0
