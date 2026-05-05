@@ -129,6 +129,12 @@ def _init_state():
         "iot_df":           None,
         "iot_tick":         0,
         "simulator":        None,
+        "graph_pdf_name":   None,
+        "graph_store":      None,
+        "graph_vector_store": None,
+        "graph_extractions": None,
+        "graph_html":       None,
+        "graph_qa_result":  None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -144,6 +150,7 @@ with st.sidebar:
     st.markdown("**HBT Digital Innovation Platform**")
     st.markdown("*KTP Associate · BCU × HB Tunnelling*")
     st.divider()
+
 
     st.markdown('<p class="section-header">🔐 API Configuration</p>', unsafe_allow_html=True)
     api_key_input = st.text_input(
@@ -165,6 +172,7 @@ with st.sidebar:
             "🏗  Module A — Tender Intelligence",
             "📋  Module B — BoQ Generator",
             "📡  Module C — IoT Digital Twin",
+            "🕸  Module D — Graph Reasoning",
         ],
         label_visibility="collapsed",
     )
@@ -924,3 +932,279 @@ elif "Module C" in module:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# MODULE D — GRAPH REASONING (GraphRAG)
+# ════════════════════════════════════════════════════════════════════════════════
+elif "Module D" in module:
+    import os
+    import tempfile
+
+    import pypdf
+    from openai import OpenAI as _OpenAI
+
+    from graph_module.graph_builder import build_graph_from_chunks
+    from graph_module.graphrag_pipeline import graphrag_query
+    from graph_module.semantic_query import (
+        find_cascading_risks,
+        find_critical_dependencies,
+        find_unmitigated_risks,
+    )
+    from graph_module.vector_store import VectorStore, chunk_text
+
+    ENTITY_TYPE_COLOURS = {
+        "Project":       "#F5A623",
+        "Risk":          "#E74C3C",
+        "Mitigation":    "#27AE60",
+        "Phase":         "#3498DB",
+        "Stakeholder":   "#9B59B6",
+        "Material":      "#1ABC9C",
+        "Specification": "#E67E22",
+        "Cost_Item":     "#F1C40F",
+        "Constraint":    "#8E44AD",
+        "Location":      "#95A5A6",
+    }
+
+    st.markdown("## 🕸 Knowledge Graph + Semantic Reasoning")
+    st.caption(
+        "An additional reasoning layer alongside the vector RAG pipeline. Entities and "
+        "relations are extracted from the document, deduplicated, and stored in a "
+        "NetworkX graph. Queries that need multi-hop reasoning (e.g. cascading risks "
+        "across phases) traverse the graph; the answer is rendered side-by-side with "
+        "the vector-only baseline so the comparison is honest."
+    )
+
+    col_up, col_info = st.columns([3, 2], gap="large")
+    with col_up:
+        st.markdown("### 📄 Document Upload")
+        st.caption(
+            "Try the bundled sample at `samples/riverside_trunk_sewer_ITT.pdf` — "
+            "it has a deliberate cascading risk chain spanning multiple sections."
+        )
+        graph_pdf = st.file_uploader(
+            "Upload tender / ITT / GIR document (PDF)",
+            type=["pdf"],
+            key="graph_pdf_uploader",
+        )
+        build_btn = st.button(
+            "🧠  Build Knowledge Graph + Vector Index",
+            use_container_width=True,
+            disabled=graph_pdf is None,
+        )
+
+    with col_info:
+        st.markdown("### 🎨 Entity Type Legend")
+        legend_html = "".join(
+            f'<span style="display:inline-block;margin:3px 6px;padding:3px 9px;'
+            f'border-radius:10px;font-size:0.72rem;background:{c};color:#0D1B2A;'
+            f'font-weight:700;">{t}</span>'
+            for t, c in ENTITY_TYPE_COLOURS.items()
+        )
+        st.markdown(f'<div style="line-height:2.2;">{legend_html}</div>', unsafe_allow_html=True)
+
+    if build_btn:
+        if not st.session_state.api_key:
+            st.error("Enter your OpenAI API key in the sidebar first.")
+        else:
+            with st.spinner("Extracting text, chunking, embedding, and building graph…"):
+                try:
+                    pdf_bytes = graph_pdf.read()
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                        tmp.write(pdf_bytes)
+                        tmp_path = tmp.name
+                    try:
+                        reader = pypdf.PdfReader(tmp_path)
+                        full_text = "\n\n".join((p.extract_text() or "") for p in reader.pages)
+                    finally:
+                        os.unlink(tmp_path)
+
+                    client = _OpenAI(api_key=st.session_state.api_key)
+                    chunks = chunk_text(full_text)
+                    st.info(f"Chunked into {len(chunks)} segments. Extracting entities in parallel…")
+                    store, extractions = build_graph_from_chunks(
+                        chunks, client, source_doc=graph_pdf.name,
+                    )
+                    vector_store = VectorStore.from_text(full_text, client)
+
+                    st.session_state.graph_pdf_name = graph_pdf.name
+                    st.session_state.graph_store = store
+                    st.session_state.graph_vector_store = vector_store
+                    st.session_state.graph_extractions = extractions
+                    st.session_state.graph_html = None
+                    st.session_state.graph_qa_result = None
+                    st.success(
+                        f"Graph built: {len(store.all_entities())} entities, "
+                        f"{len(store.all_relations())} relations.",
+                        icon="✅",
+                    )
+                except Exception as exc:
+                    st.error(f"Graph build failed: {exc}")
+
+    store = st.session_state.graph_store
+    if store is not None:
+        st.divider()
+        st.markdown(f"### 🧬 Graph for `{st.session_state.graph_pdf_name}`")
+
+        ents = store.all_entities()
+        rels = store.all_relations()
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Entities",   len(ents))
+        c2.metric("Relations",  len(rels))
+        c3.metric("Risks",      len(store.all_nodes_of_type("Risk")))
+        c4.metric("Phases",     len(store.all_nodes_of_type("Phase")))
+
+        # ── pyvis viz (built once per graph) ──
+        if st.session_state.graph_html is None and ents:
+            try:
+                from pyvis.network import Network
+                net = Network(
+                    height="520px", width="100%",
+                    bgcolor="#0D1B2A", font_color="#E8F4FD",
+                    directed=True, notebook=False,
+                )
+                for e in ents:
+                    net.add_node(
+                        e.id,
+                        label=e.name,
+                        title=f"{e.type}: {e.name}",
+                        color=ENTITY_TYPE_COLOURS.get(e.type, "#8BA7C7"),
+                        shape="dot", size=18,
+                    )
+                for r in rels:
+                    net.add_edge(
+                        r.source_id, r.target_id,
+                        label=r.relation_type,
+                        title=f"{r.relation_type} (conf={r.confidence:.2f})\n{r.evidence_span}",
+                        arrows="to",
+                    )
+                net.toggle_physics(True)
+                st.session_state.graph_html = net.generate_html(notebook=False)
+            except Exception as exc:
+                st.warning(f"Graph visualisation skipped: {exc}")
+
+        if st.session_state.graph_html:
+            st.components.v1.html(st.session_state.graph_html, height=540, scrolling=False)
+
+        # ── Demo query buttons ──
+        st.markdown("### 🔎 Built-in Semantic Queries")
+        risk_ids = [r.id for r in store.all_nodes_of_type("Risk")]
+        phase_ids = [p.id for p in store.all_nodes_of_type("Phase")]
+
+        q_col1, q_col2 = st.columns(2)
+        with q_col1:
+            if risk_ids:
+                root_risk = st.selectbox("Root risk for cascade trace", risk_ids, key="cascade_root")
+                if st.button("Trace cascading risks", use_container_width=True):
+                    cascades = find_cascading_risks(store, root_risk, max_hops=3)
+                    if not cascades:
+                        st.info("No downstream risks reachable along TRIGGERS / RELATED_TO.")
+                    for hit in cascades:
+                        st.markdown(
+                            f"**{hit['entity'].name}** "
+                            f"`{hit['entity'].id}` — {hit['hops']} hop(s)"
+                        )
+                        for step in hit["path"]:
+                            st.caption(
+                                f"  {step['source']} —[{step['relation']}]→ {step['target']}  "
+                                f"_(conf {step['confidence']:.2f})_  «{step['evidence_span']}»"
+                            )
+
+            unmitigated = find_unmitigated_risks(store)
+            with st.expander(f"Unmitigated risks ({len(unmitigated)})"):
+                for r in unmitigated:
+                    st.markdown(f"- **{r.name}** `{r.id}`")
+
+        with q_col2:
+            if phase_ids:
+                phase = st.selectbox("Phase to inspect", phase_ids, key="phase_inspect")
+                if st.button("Show critical dependencies", use_container_width=True):
+                    deps = find_critical_dependencies(store, phase)
+                    st.markdown("**Depends on phases:**")
+                    for p in deps["depends_on_phases"]:
+                        st.markdown(f"- {p.name} `{p.id}`")
+                    st.markdown("**Required materials:**")
+                    for m in deps["requires_materials"]:
+                        st.markdown(f"- {m.name} `{m.id}`")
+                    st.markdown("**Required specifications:**")
+                    for s in deps["requires_specifications"]:
+                        st.markdown(f"- {s.name} `{s.id}`")
+
+        # ── GraphRAG side-by-side ──
+        st.divider()
+        st.markdown("### ⚖ Vector RAG vs GraphRAG — side-by-side")
+        st.caption(
+            "Both paths see the same chunks embedded the same way and call GPT-4o "
+            "with the same instruction shape. The only difference is retrieval. "
+            "Try a question that requires connecting facts across sections — e.g. "
+            "*\"What downstream commercial impact could a groundwater ingress event "
+            "ultimately cause?\"*"
+        )
+        question = st.text_input(
+            "Question",
+            value="What downstream commercial impact could a groundwater ingress event ultimately cause?",
+            key="graphrag_question",
+        )
+        if st.button("Run side-by-side query", use_container_width=True):
+            if not st.session_state.api_key:
+                st.error("API key required.")
+            elif st.session_state.graph_vector_store is None:
+                st.error("Vector store missing — rebuild the index.")
+            else:
+                client = _OpenAI(api_key=st.session_state.api_key)
+                with st.spinner("Running both retrieval paths…"):
+                    try:
+                        st.session_state.graph_qa_result = graphrag_query(
+                            question,
+                            st.session_state.graph_vector_store,
+                            store,
+                            client,
+                        )
+                    except Exception as exc:
+                        st.error(f"Query failed: {exc}")
+
+        result = st.session_state.graph_qa_result
+        if result:
+            ac1, ac2 = st.columns(2, gap="large")
+            with ac1:
+                st.markdown("#### 📚 Vector RAG answer")
+                st.markdown(
+                    f'<div class="metric-card">{result["vector_answer"]}</div>',
+                    unsafe_allow_html=True,
+                )
+                with st.expander(f"Retrieved chunks ({len(result['vector_hits'])})"):
+                    for idx, score, preview in result["vector_hits"]:
+                        st.caption(f"chunk {idx} · sim={score:.3f}")
+                        st.code(preview, language="text")
+            with ac2:
+                st.markdown("#### 🕸 GraphRAG answer")
+                st.markdown(
+                    f'<div class="metric-card" style="border-color:#F5A623;">'
+                    f'{result["graphrag_answer"]}</div>',
+                    unsafe_allow_html=True,
+                )
+                with st.expander(
+                    f"Seed entities ({len(result['graph_seed_entities'])}) "
+                    f"+ subgraph ({len(result['graph_subgraph_entities'])} entities, "
+                    f"{len(result['graph_subgraph_relations'])} relations)"
+                ):
+                    st.markdown("**Seeded from question:**")
+                    for e in result["graph_seed_entities"]:
+                        st.markdown(f"- `{e.id}` — {e.name}")
+                    st.markdown("**Traversed edges:**")
+                    for r in result["graph_subgraph_relations"]:
+                        st.caption(
+                            f"{r.source_id} —[{r.relation_type}]→ {r.target_id}  "
+                            f"_(conf {r.confidence:.2f})_"
+                        )
+
+            st.markdown("#### 🔬 Why the answers differ")
+            st.info(result["diagnostic"])
+    else:
+        st.markdown(
+            '<div class="metric-card" style="text-align:center;padding:2rem;">'
+            '<p style="color:#8BA7C7;font-size:0.9rem;">'
+            "Upload a PDF and build the index to populate the knowledge graph."
+            "</p></div>",
+            unsafe_allow_html=True,
+        )
