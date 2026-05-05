@@ -74,35 +74,52 @@ This prototype was developed as part of a **Knowledge Transfer Partnership (KTP)
 ```
 tunnelspec-ai/
 │
-├── app.py               # Streamlit UI — all three modules
-├── engine_ai.py         # AI engine — PDF parsing, GPT-4o calls, BoQ generation
-├── simulator_iot.py     # IoT simulator — TBM sensor time-series engine
-├── requirements.txt     # Python dependencies
-└── assets/              # Screenshots for this README
+├── app.py                  # Streamlit UI — all four modules
+├── engine_ai.py            # PDF parsing, GPT-4o tender extraction, BoQ generation
+├── simulator_iot.py        # TBM sensor time-series simulator
+├── graph_module/           # GraphRAG layer (Module D)
+│   ├── schemas.py          #   Pydantic Entity/Relation models with grounded evidence
+│   ├── vector_store.py     #   Chunker + numpy cosine-similarity retrieval
+│   ├── entity_extractor.py #   GPT-4o structured-output entity/relation extractor
+│   ├── graph_store.py      #   GraphStore abstraction + NetworkX backend, Neo4j stub
+│   ├── graph_builder.py    #   Parallel extraction + rapidfuzz dedup orchestration
+│   ├── semantic_query.py   #   Cascading-risk, unmitigated-risk, dependency walks
+│   └── graphrag_pipeline.py#   Side-by-side vector-RAG vs GraphRAG question answering
+├── samples/                # Synthetic ITT for demoing Module D
+├── tests/                  # Pytest suite for the GraphRAG module
+├── requirements.txt        # Python dependencies
+└── assets/                 # Screenshots for this README
 ```
 
 ### Data Flow
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │           TunnelSpec AI Platform          │
-                    └─────────────────────────────────────────┘
-                                        │
-          ┌─────────────────────────────┼─────────────────────────────┐
-          │                             │                             │
-   ┌──────▼──────┐              ┌───────▼──────┐              ┌───────▼──────┐
-   │  Module A   │              │   Module B   │              │   Module C   │
-   │  Tender     │              │   BoQ        │              │   IoT        │
-   │  Intelligence│             │   Generator  │              │   Digital    │
-   └──────┬──────┘              └───────┬──────┘              │   Twin       │
-          │                             │                      └───────┬──────┘
-   PDF → pypdf               Free-text scope →              NumPy simulation →
-   → GPT-4o (3 RAG calls)    GPT-4o → structured           8 TBM sensor streams
-   → Scope / Ground /        JSON BoQ with NRM2             → Plotly live charts
-     Risk extraction         rates + HBT benchmarks         → Alert detection
-   → Confidence scoring                                      → KPI dashboard
-   → Opportunity Score       → CSV / Excel export
-     (GO / COND / NO GO)
+                    ┌──────────────────────────────────────────────────┐
+                    │              TunnelSpec AI Platform              │
+                    └──────────────────────────────────────────────────┘
+                                            │
+       ┌────────────────────┬───────────────┼───────────────┬────────────────────┐
+       │                    │               │               │                    │
+┌──────▼──────┐      ┌──────▼──────┐  ┌─────▼──────┐  ┌─────▼──────────┐
+│  Module A   │      │  Module B   │  │  Module C  │  │   Module D     │
+│  Tender     │      │  BoQ        │  │  IoT       │  │   Graph        │
+│  Intelligence│     │  Generator  │  │  Digital   │  │   Reasoning    │
+└──────┬──────┘      └──────┬──────┘  │  Twin      │  │   (GraphRAG)   │
+       │                    │         └─────┬──────┘  └─────┬──────────┘
+PDF → pypdf          Free-text scope    NumPy sim →    PDF → pypdf →
+ → GPT-4o            → GPT-4o →         8 TBM sensor    chunk_text() →
+   (3 RAG calls)       structured        streams →
+ → Scope / Ground /    JSON BoQ with    → Plotly live   ┌──────────┴──────────┐
+   Risk extraction     NRM2 rates +       charts        │                     │
+ → Confidence          benchmarks       → Alert        text-embedding-3-small  GPT-4o entity
+   scoring                                detection     → numpy cosine          extractor →
+ → Opportunity        → CSV / Excel    → KPI            VectorStore             rapidfuzz dedup
+   Score (GO/         export            dashboard            │                  → NetworkX graph
+   COND / NO GO)                                             └──────────┬──────────┘
+                                                                        ▼
+                                                          graphrag_query() →
+                                                          Vector RAG answer ‖ GraphRAG answer
+                                                          + diagnostic
 ```
 
 ---
@@ -321,31 +338,32 @@ No `.env` file or config needed. Enter your OpenAI API key directly in the sideb
 
 ---
 
-## 🗺 KTP Technical Roadmap
+## 🗺 Technical Roadmap
 
-This prototype establishes the foundation for a 28-month KTP workplan. Planned Phase 2 upgrades:
+The current build establishes the foundation; the planned next-phase upgrades extend each module along its natural research axis.
 
 ### Mamba-SSM for Long-Horizon IoT Monitoring
 
-The current IoT module uses NumPy simulation. The production architecture will integrate **Mamba (Selective State Space Models)** for real sensor sequence modelling:
+The IoT module currently uses NumPy simulation. The intended production architecture replaces that with **Mamba (Selective State Space Models)** for real sensor sequence modelling — the right primitive for a TBM drive that may run for many months at high sampling rates:
 
 | Aspect | Transformer (Attention) | Mamba-SSM |
 |--------|------------------------|-----------|
 | Time complexity | O(n²) — quadratic | O(n) — linear |
 | Memory scaling | Memory wall at long sequences | Constant memory footprint |
-| 28-month telemetry | Requires aggressive chunking | Full sequence, no truncation |
+| Long-horizon telemetry | Requires aggressive chunking | Full sequence, no truncation |
 | Edge deployment | High compute cost | Hardware-aware recurrence, GPU/edge optimised |
 
 **Target outcome:** Predictive anomaly detection 60–90 seconds ahead of threshold breach — giving TBM operators intervention time before a ground loss or structural event.
 
-### Phase 2 Feature Pipeline
+### Feature Pipeline
 
 - [ ] Live MQTT broker integration (Eclipse Mosquitto / AWS IoT Core)
-- [ ] Mamba-SSM anomaly prediction model trained on HBT historical drive data
+- [ ] Mamba-SSM anomaly prediction model trained on historical TBM drive data
 - [ ] Automated tender shortlisting from procurement portal APIs
 - [ ] Multi-project portfolio dashboard (concurrent drive monitoring)
-- [ ] RAG over HBT's internal cost database for live benchmark pricing
+- [ ] RAG over an internal cost database for live benchmark pricing
 - [ ] BIM/GIS integration for alignment and geology visualisation
+- [ ] Neo4j backend for the GraphRAG module (interface already defined in `graph_module/graph_store.py`)
 
 ---
 
