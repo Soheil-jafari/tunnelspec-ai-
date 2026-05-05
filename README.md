@@ -180,6 +180,91 @@ Each sensor stream includes: Gaussian noise · linear geological trend drift · 
 
 ---
 
+### Module D — Graph Reasoning (GraphRAG)
+
+A knowledge-graph + semantic-reasoning layer sitting **alongside** the existing extraction pipeline. Module D demonstrates that not every tender question is best served by vector retrieval — some require connecting facts across sections, and that's what a graph traversal can do that nearest-neighbour search cannot.
+
+#### Why graph reasoning complements vector RAG
+
+A worked example from the bundled sample document:
+
+> *"What downstream commercial impact could a groundwater ingress event ultimately cause?"*
+
+The full causal chain — `Risk_Groundwater_Ingress → TRIGGERS → Risk_TBM_Stoppage → TRIGGERS → Risk_Programme_Delay → TRIGGERS → Risk_Cost_Overrun` — is **deliberately split across four separate sections** of the ITT (Geotechnical Risk, Programme Risk, Operational Risk, Commercial Risk). A vector retriever pulling top-k chunks for the question gets the groundwater section and possibly the cost section, but rarely retrieves all four intermediate links in a single shot. Graph traversal follows `TRIGGERS` edges and recovers the chain regardless of where each link was authored. The Streamlit panel surfaces both answers side-by-side and prints a diagnostic ("seeded traversal from Risk_Groundwater_Ingress; 4 additional entities reached via 5 relations") so the difference is visible, not asserted.
+
+#### Entity / relation taxonomy
+
+| Entity types | Relation types |
+|---|---|
+| `Project`, `Risk`, `Mitigation`, `Phase`, `Stakeholder`, `Material`, `Specification`, `Cost_Item`, `Constraint`, `Location` | `AFFECTS`, `MITIGATES`, `DEPENDS_ON`, `REQUIRES`, `RESPONSIBLE_FOR`, `TRIGGERS`, `RELATED_TO`, `PART_OF` |
+
+Every extracted relation carries an `evidence_span` (verbatim snippet from the source) and a `confidence ∈ [0, 1]`. This mirrors the project's existing 3-D confidence rubric — claims must be grounded in the document, not asserted.
+
+#### Three demo queries
+
+| Query | What it does | Example output |
+|---|---|---|
+| `find_cascading_risks(graph, root, max_hops=3)` | BFS along `TRIGGERS` / `RELATED_TO` edges from a root risk; returns each downstream risk plus the path taken. | `Risk_Cost_Overrun` reached from `Risk_Groundwater_Ingress` in 3 hops via `[TRIGGERS, TRIGGERS, TRIGGERS]`. |
+| `find_unmitigated_risks(graph)` | Returns every `Risk` node with no incoming `MITIGATES` edge. | On the sample ITT: `Risk_Third_Party_Building_Damage` — flagged because Section 6 explicitly leaves it for tenderers to price. |
+| `find_critical_dependencies(graph, phase)` | Returns upstream phase prerequisites plus required `Material` and `Specification` nodes. | For `Phase_Tunnel_Drive`: depends on `Phase_Launch_Shaft`; requires `Material_EPB_TBM`, `Material_Precast_Concrete_Segments`, `Spec_Drive_Length_1200m`. |
+
+#### Architecture
+
+```
+PDF upload
+    │
+    ▼
+pypdf → full text ─┬───────────────────────────────────────────────┐
+                   │                                               │
+                   ▼                                               ▼
+           chunk_text()                                    chunk_text()
+                   │                                               │
+                   ▼                                               ▼
+        text-embedding-3-small                  GPT-4o entity extractor (parallel chunks)
+                   │                                               │
+                   ▼                                               ▼
+            VectorStore                          rapidfuzz dedup ─► NetworkXGraphStore
+            (numpy + cosine)                                       (MultiDiGraph)
+                   │                                               │
+                   └────────────────┬──────────────────────────────┘
+                                    ▼
+                 graphrag_query(): same chunks, same model, same prompt shape
+                                    │
+                  ┌─────────────────┴──────────────────┐
+                  ▼                                    ▼
+          Vector RAG answer                    GraphRAG answer
+                                    + diagnostic ("why they differ")
+```
+
+Backend uses NetworkX for portability; production target is Neo4j (interface defined in `graph_module/graph_store.py` as `Neo4jGraphStore`).
+
+#### How to demo
+
+A synthetic ITT with a deliberate cascading-risk structure ships in `samples/`:
+
+```bash
+streamlit run app.py
+# 1. Sidebar → enter your OpenAI API key
+# 2. Sidebar → select "Module D — Graph Reasoning"
+# 3. Upload  samples/riverside_trunk_sewer_ITT.pdf
+# 4. Click "Build Knowledge Graph + Vector Index" (~30-60 s)
+# 5. Inspect the pyvis graph (colour-coded by entity type), then
+#    run the side-by-side query — the default question is the
+#    cross-section cascade case described above.
+```
+
+To regenerate the sample PDF: `python samples/generate_sample_pdf.py` (requires `reportlab`, dev-only — not in `requirements.txt`).
+
+#### Tests
+
+```bash
+pytest tests/test_graph_module.py -v
+```
+
+Covers: Pydantic schema validation, alias dedup via rapidfuzz, multi-hop BFS path correctness, `find_unmitigated_risks` exclusion logic, dependency partitioning by entity type, and the full `graphrag_query` flow with mocked OpenAI.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -230,6 +315,9 @@ No `.env` file or config needed. Enter your OpenAI API key directly in the sideb
 | `numpy` | Sensor time-series simulation |
 | `plotly` | Interactive charts and live dashboards |
 | `openpyxl` | Excel (.xlsx) export |
+| `networkx` | In-memory knowledge graph (Module D) |
+| `pyvis` | Interactive graph visualisation (Module D) |
+| `rapidfuzz` | Entity-name fuzzy deduplication (Module D) |
 
 ---
 
