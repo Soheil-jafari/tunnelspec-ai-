@@ -18,7 +18,7 @@ import numpy as np
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 
-def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
     """Word-aware sliding-window chunker. Returns non-empty chunks."""
     words = text.split()
     if not words:
@@ -50,7 +50,7 @@ class VectorStore:
     embeddings: np.ndarray = field(default_factory=lambda: np.zeros((0, 0), dtype=np.float32))
 
     @classmethod
-    def from_text(cls, text: str, client, chunk_size: int = 900, overlap: int = 150) -> "VectorStore":
+    def from_text(cls, text: str, client, chunk_size: int = 500, overlap: int = 100) -> "VectorStore":
         chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
         if not chunks:
             return cls()
