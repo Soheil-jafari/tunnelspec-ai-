@@ -62,7 +62,7 @@
 | Challenge | TunnelSpec AI Solution |
 |-----------|----------------------|
 | Estimators spending days manually reading tender PDFs | **Module A** — GPT-4o extracts structured intelligence in under 60 seconds |
-| Inconsistent BoQ formats across subcontractors | **Module B** — AI-generated NRM2/CESMM4-compliant schedules with historical benchmarks |
+| Inconsistent BoQ formats across subcontractors | **Module B** — GPT-4o-generated NRM2/CESMM4-compliant schedules with historical benchmarks |
 | No real-time visibility of TBM drive telemetry | **Module C** — Live IoT digital twin dashboard simulating MQTT sensor pipelines |
 
 This prototype was developed as part of a **Knowledge Transfer Partnership (KTP)** application between **HB Tunnelling Ltd (HBT)** and **Birmingham City University (BCU)**, demonstrating the technical vision outlined in the KTP workplan.
