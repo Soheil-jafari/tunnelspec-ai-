@@ -392,7 +392,7 @@ The IoT module currently uses NumPy simulation. The intended production architec
 ## 👤 Author
 
 **Soheil Jafari**
-AI Engineer | MSc [Your Degree] | BEng Electrical Engineering
+AI Engineer | MSc Computer Science | BEng Electrical Engineering
 
 [![GitHub](https://img.shields.io/badge/GitHub-Soheil--jafari-181717?style=flat-square&logo=github)](https://github.com/Soheil-jafari)
 
