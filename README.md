@@ -32,6 +32,12 @@
 
 ![Module A – Tender Intelligence](assets/module_a_tender.png)
 
+**Additional views**
+
+![Module A – Additional view 1](assets/module_a_tender_2.png)
+
+![Module A – Additional view 2](assets/module_a_tender_3.png)
+
 ---
 
 ### Module A — Extraction Confidence Scores
@@ -46,12 +52,28 @@
 
 ![Module B – BoQ Generator](assets/module_b_boq.png)
 
+**Additional views**
+
+![Module B – Additional view 1](assets/module_b_boq_2.png)
+
+![Module B – Additional view 2](assets/module_b_boq_3.png)
+
 ---
 
 ### Module C — IoT Digital Twin (Live TBM Monitor)
 > **📌 Place screenshot here:** Upload a screenshot of the live sensor dashboard with the TBM Performance charts running. Save it as `assets/module_c_iot.png`.
 
 ![Module C – IoT Digital Twin](assets/module_c_iot.png)
+
+**Additional views**
+
+![Module C – Additional view 1](assets/module_c_iot_2.png)
+
+![Module C – Additional view 2](assets/module_c_iot_3.png)
+
+![Module C – Additional view 3](assets/module_c_iot_4.png)
+
+![Module C – Additional view 4](assets/module_c_iot_5.png)
 
 ---
 
