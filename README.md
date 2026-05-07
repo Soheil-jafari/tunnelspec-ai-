@@ -394,8 +394,6 @@ The IoT module currently uses NumPy simulation. The intended production architec
 **Soheil Jafari**
 AI Engineer | MSc [Your Degree] | BEng Electrical Engineering
 
-KTP Associate Candidate — HB Tunnelling Ltd × Birmingham City University
-
 [![GitHub](https://img.shields.io/badge/GitHub-Soheil--jafari-181717?style=flat-square&logo=github)](https://github.com/Soheil-jafari)
 
 ---
