@@ -19,16 +19,8 @@
 
 ---
 
-## 📸 Screenshots
-
-<!-- ─────────────────────────────────────────────────────────────────────────
-     SCREENSHOT PLACEMENT GUIDE
-     Upload your screenshots to a folder called /assets/ in this repo,
-     then replace the placeholder paths below with the actual filenames.
-     ───────────────────────────────────────────────────────────────────── -->
 
 ### Module A — Tender Intelligence Engine
-> **📌 Place screenshot here:** Upload a screenshot of the Module A page showing the extracted Project Scope, Ground Conditions, and Risk Factors tabs, plus the Opportunity Score gauge. Save it as `assets/module_a_tender.png`.
 
 ![Module A – Tender Intelligence](assets/module_a_tender.png)
 
@@ -41,14 +33,12 @@
 ---
 
 ### Module A — Extraction Confidence Scores
-> **📌 Place screenshot here:** Upload a screenshot of the three confidence score cards (Completeness / Grounding / Specificity) below the intelligence tabs. Save it as `assets/module_a_confidence.png`.
 
 ![Module A – Confidence Scores](assets/module_a_confidence.png)
 
 ---
 
 ### Module B — Bill of Quantities Generator
-> **📌 Place screenshot here:** Upload a screenshot of the generated BoQ table including the HBT Historical Benchmark column, the cost distribution pie chart, and the Export buttons. Save it as `assets/module_b_boq.png`.
 
 ![Module B – BoQ Generator](assets/module_b_boq.png)
 
@@ -61,7 +51,6 @@
 ---
 
 ### Module C — IoT Digital Twin (Live TBM Monitor)
-> **📌 Place screenshot here:** Upload a screenshot of the live sensor dashboard with the TBM Performance charts running. Save it as `assets/module_c_iot.png`.
 
 ![Module C – IoT Digital Twin](assets/module_c_iot.png)
 
