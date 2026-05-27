@@ -46,8 +46,6 @@
 
 ![Module B – Additional view 1](assets/module_b_boq_2.png)
 
-![Module B – Additional view 2](assets/module_b_boq_3.png)
-
 ---
 
 ### Module C — IoT Digital Twin (Live TBM Monitor)
@@ -57,6 +55,8 @@
 **Additional views**
 
 ![Module C – Additional view 1](assets/module_c_iot_2.png)
+
+![Module B – Additional view 2](assets/module_b_boq_3.png)
 
 ![Module C – Additional view 2](assets/module_c_iot_3.png)
 
